@@ -9,9 +9,16 @@ halite
 #temporary schitt
 tmp/*
 *.tmp
+hlt/__pycache__*
 
 #examples
 *example*
+
+#logs
+*.log
+
+#replays
+*.hlt
 
 #swap files from vim
 *.sw?
