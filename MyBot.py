@@ -6,6 +6,7 @@ logging.info("D4m0b0t running")
 while True:
     game_map = game.update_map()
     command_queue = []
+    targetted_list = None
 
     for ship in game_map.get_me().all_ships():
         if ship.docking_status != ship.DockingStatus.UNDOCKED:
@@ -14,8 +15,17 @@ while True:
             #locate what we're going to call the best target for this particular ship right nao
             best_targets = planet_sort_by_distance(ship, game_map.all_planets())
 
+            #sedatives are REALLY causing some horrific errors right now, I need to stop this for the night
+            #for temp_target in best_targets:
+            #    if temp_target.is_owned():
+            #        best_targets.remove(temp_target)
+
+    `       for temp_target in targetted_list:
+                best_targets.remove(temp_target)
+
             target = find_first_unowned(best_targets)   #later we'll check to see if anybody else is closer and more likely to be
                                                         #snatching this out from under us, but this is good for now
+            targetted_list.append(target)
 
             if target == None:
                 #not sure what the fuck to do here yet
@@ -35,6 +45,7 @@ while True:
 
             if navigate_command:
                 command_queue.append(navigate_command)
+                occupied_list.append(target.id)
 
 
     
