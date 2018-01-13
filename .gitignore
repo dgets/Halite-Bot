@@ -13,3 +13,6 @@ tmp/*
 #examples
 *example*
 
+#swap files from vim
+*.sw?
+

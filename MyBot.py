@@ -51,9 +51,9 @@ def planet_sort_by_docked(planet_list):
         cntr = 0
         for current_planet in planet_list:
             #swap
-            if len(current_planet.all_docked_ships) > len(planet_list[cntr1 + 1].all_docked_ships):
-                planet_list[cntr1] = planet_list[cntr1 + 1]
-                planet_list[cntr1 + 1] = current_planet
+            if len(current_planet.all_docked_ships) > len(planet_list[cntr + 1].all_docked_ships):
+                planet_list[cntr] = planet_list[cntr + 1]
+                planet_list[cntr + 1] = current_planet
 
             cntr++
 
@@ -72,10 +72,10 @@ def planet_sort_by_distance(current_ship, planet_list):
     for iteration in (0, len(planet_list) - 1):
         cntr = 0
         for current_planet in planet_list:
-            if planet_list[cntr1].calculate_distance_between(current_ship) > \
-                    planet_list[cntr1 + 1].calculate_distance_between(current_ship):
-                planet_list[cntr1] = planet_list[cntr1 + 1]
-                planet_list[cntr1 + 1] = current_planet
+            if planet_list[cntr].calculate_distance_between(current_ship) > \
+                    planet_list[cntr + 1].calculate_distance_between(current_ship):
+                planet_list[cntr] = planet_list[cntr + 1]
+                planet_list[cntr + 1] = current_planet
                 
             cntr++
 
