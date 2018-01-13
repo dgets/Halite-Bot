@@ -155,10 +155,17 @@ while True:
                             speed = default_speed,
                             ignore_ships = False)
                 else:
-                    #need to determine in which direction to change the course, obviously
-                    thrust_angle = collision_risk_angle + 90
+                    #this is not taking into account any other ships in the vicinity yet
+                    previous_angle = ship.calculate_angle_between(ship.closest_point_to(target))
+                    if previous_angle >= collision_risk_angle:
+                        thrust_angle = previous_angle + 45
+                    else:
+                        thrust_angle = previous_angle - 45
+
                     if thrust_angle > 360:
-                        thrust_angle -= 359
+                        thrust_angle -= 360
+                    elif thrust_angle <= 0:
+                        thrust_angle += 360
 
                     navigate_command = ship.thrust(
                             default_speed,
