@@ -21,15 +21,15 @@ def planet_sort_by_distance(current_ship, planet_list):
 
     #bubble sort, again, for now
     cntr = 0
-    for iteration in (0, len(planet_list) - 2):
+    for iteration in (1, len(planet_list)):
         for current_planet in planet_list:
             if debugging:
                 logging.info("planet: " + str(cntr))
 
-            if planet_list[cntr].calculate_distance_between(current_ship) > \
-                    planet_list[cntr + 1].calculate_distance_between(current_ship):
-                planet_list[cntr] = planet_list[cntr + 1]
-                planet_list[cntr + 1] = current_planet
+            if planet_list[cntr].calculate_distance_between(current_ship) < \
+                    planet_list[cntr - 1].calculate_distance_between(current_ship):
+                planet_list[cntr] = planet_list[cntr - 1]
+                planet_list[cntr - 1] = current_planet
                 
         cntr += 1
 
@@ -56,19 +56,24 @@ def planet_sort_by_docked(planet_list):
 
     return planet_list
 
-def find_first_unowned(planet_list):
+def find_first_unowned(planet_list, already_targetted):
     """
     Check through the list of planets and return the first one that is not owned (or None)
     :param array planet_list:
+    :param array already_targetted:
     :return: Unowned planet
     :rtype: Planet
     """
 
     for target in planet_list:
         if target.is_owned():
-            continue
+            if target not in already_targetted:
+                continue
 
-        return target
+        if target:
+            return target
+        else:
+            return planet_list[0]
 
 def other_ships_in_vicinity(current_ship, other_ships, risk_distance):
     """
@@ -90,27 +95,28 @@ def other_ships_in_vicinity(current_ship, other_ships, risk_distance):
 while True:
     game_map = game.update_map()
     targetted_list = []
+    command_queue = []
+    best_targets = []
     default_speed = int(hlt.constants.MAX_SPEED / 2)
 
     if debugging:
         logging.info("-=- Entered primary loop -=-")
 
     for ship in game_map.get_me().all_ships():
-        command_queue = []
-
         if ship.docking_status != ship.DockingStatus.UNDOCKED:
             continue
         else:
             #locate what we're going to call the best target for this particular ship right nao
             best_targets = planet_sort_by_distance(ship, game_map.all_planets())
 
-            if len(targetted_list) > 0 and len(best_targets) > 0:
-                for temp_target in targetted_list:
-                    best_targets.remove(temp_target)
+            #if len(targetted_list) > 0 and len(best_targets) > 0:
+            #    for temp_target in targetted_list:
+            #        best_targets.remove(temp_target)
 
-            target = find_first_unowned(best_targets)   #later we'll check to see if anybody else is closer and more likely to be
+            target = find_first_unowned(best_targets, targetted_list)
+                                                        #later we'll check to see if anybody else is closer and more likely to be
                                                         #snatching this out from under us, but this is good for now
-            targetted_list.append(target)
+            #targetted_list.append(target)
 
             if target == None:
             #    destroy the closest enemy ship
@@ -129,7 +135,7 @@ while True:
                             ship.closest_point_to(target),
                             game_map,
                             speed = default_speed,
-                            ignore_ships = False)
+                            ignore_ships = True)
                 #else:
                 #    thrust_angle = collision_risk_angle + 180
                 #    if thrust_angle > 360:
@@ -142,6 +148,8 @@ while True:
 
             if navigate_command:
                 command_queue.append(navigate_command)
+        #end for undocked ship
+    #end this ship's processing
 
     game.send_command_queue(command_queue)
 
