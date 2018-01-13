@@ -1,0 +1,15 @@
+#binaries/scripts for local use
+halite
+*.sh
+*.bat
+
+#submissions and other archives
+*.zip
+
+#temporary schitt
+tmp/*
+*.tmp
+
+#examples
+*example*
+
