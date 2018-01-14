@@ -44,12 +44,12 @@ def planet_sort_by_docked(planet_list):
 
     return planet_list
 
-def find_first_unowned(planet_list, already_targetted, ship_id):
+def find_first_unowned(planet_list, already_targeted, ship_id):
     """
-    Check through the list of planets and return the first one that is not owned (or None), and not already targetted by another
+    Check through the list of planets and return the first one that is not owned (or None), and not already targeted by another
     ship in our fleet
     :param array planet_list:
-    :param array of arrays/hashes already_targetted:
+    :param array of arrays/hashes already_targeted:
     :param integer ship_id:
     :return: Unowned planet
     :rtype: Planet
@@ -59,12 +59,12 @@ def find_first_unowned(planet_list, already_targetted, ship_id):
 
     for target in planet_list:  #each potential target planet
         if not target.is_owned():   #if it isn't already occupied
-            for targetted_by in already_targetted:  #loop through already targetted list
-                if ship_id == targetted_by[1]:  #is this really necessary?
+            for targeted_by in already_targeted:  #loop through already targeted list
+                if ship_id == targeted_by[1]:  #is this really necessary?
                     return target
                 else:
                     taken = True
-            #end targetted loop
+            #end targeted loop
         #end not already occupied loop
         if not taken:
             return target
@@ -96,7 +96,7 @@ def other_ships_in_vicinity(current_ship, other_ships, risk_distance):
 #begin primary game loop
 while True:
     game_map = game.update_map()
-    targetted_list = []
+    targeted_list = []
     command_queue = []
     best_targets = []
     default_speed = int(hlt.constants.MAX_SPEED / 2)
@@ -110,34 +110,21 @@ while True:
             #locate what we're going to call the best target for this particular ship right nao
             #best_targets = planet_sort_by_distance(ship, game_map.all_planets())
 
-            #if len(targetted_list) > 0 and len(best_targets) > 0:
-            #    for temp_target in targetted_list:
-            #        if temp_target[0] in best_targets:
-            #            best_targets.remove(temp_target[0])
-            
-            #target = find_first_unowned(best_targets, targetted_list, my_id)
-                                                        #later we'll check to see if anybody else is closer and more likely to be
-                                                        #snatching this out from under us, but this is good for now
-            #if target not in targetted_list:
-            #    targetted_list.append([target, my_id])
-
-            #target = best_targets[0]
-
             success = False
             for target in planet_sort_by_distance(ship, game_map.all_planets()):
                 if target['planet_object'].is_owned():
                     continue
-                elif target['planet_object'] in targetted_list:
+                elif target['planet_object'] in targeted_list:
                     continue
                 else:
                     success = True
-                    targetted_list.append(target['planet_object'])
+                    targeted_list.append(target['planet_object'])
                     break
 
             if not success:
-                #haven't found anything with the simple targetting criteria; what's next?
-                if len(targetted_list) > 0:
-                    target = planet_sort_by_distance(ship, targetted_list)[0]
+                #haven't found anything with the simple targeting criteria; what's next?
+                if len(targeted_list) > 0:
+                    target = planet_sort_by_distance(ship, targeted_list)[0]
             
             if ship.can_dock(target['planet_object']):
                 command_queue.append(ship.dock(target['planet_object']))
