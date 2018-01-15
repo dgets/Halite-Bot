@@ -77,38 +77,37 @@ def find_first_unowned(planet_list, already_targeted, ship_id):
     else:
         return 
 
-def other_ships_in_vicinity(current_ship, other_ships, risk_distance):
+def other_entities_in_vicinity(current_entity, other_entities, scan_distance):
     """
-    Check to see if there are any more of my ships within the immediate vicinity
-    :param Ship current_ship:
-    :param array other_ships:
-    :param integer risk_distance:
-    :return: Angle between this ship and the first other ship found within collision risk area
+    Check to see if there are any more specified entities within the immediate vicinity
+    :param Entity current_entity:
+    :param array other_entities:
+    :param integer scan_distance:
+    :return: Angle between this entity and the first other found within collision risk area, or None
     :rtype: float
     """
 
-    for other_ship in other_ships:
-        if current_ship.calculate_distance_between(other_ship) < risk_distance:
-            return current_ship.calculate_angle_between(other_ship)
+    for other_entity in other_entities:
+        if current_entity.calculate_distance_between(other_entity) <= scan_distance:
+            return current_entity.calculate_angle_between(other_entity)
 
-    return 0
+    return None
 
+#entrance
 #begin primary game loop
 while True:
     game_map = game.update_map()
+    default_speed = int(hlt.constants.MAX_SPEED / 2)
+
     targeted_list = []
     command_queue = []
-    best_targets = []
-    default_speed = int(hlt.constants.MAX_SPEED / 2)
+
 
     for ship in game_map.get_me().all_ships():
         if ship.docking_status != ship.DockingStatus.UNDOCKED:
             continue
         else:
-            my_id = ship.id
-
             #locate what we're going to call the best target for this particular ship right nao
-            #best_targets = planet_sort_by_distance(ship, game_map.all_planets())
 
             success = False
             for target in planet_sort_by_distance(ship, game_map.all_planets()):
@@ -117,6 +116,16 @@ while True:
                 elif target['planet_object'] in targeted_list:
                     continue
                 else:
+                    #now is our potential target closer to the bad guys?
+                    for player in game_map.all_players():
+                        if not player == game_map.get_me():
+                            if other_entities_in_vicinity(target['planet_object'], player.all_ships(), \
+                                    target['planet_object'].calculate_distance_between(ship)):
+                                #someone else is as close or closer
+                                #we can probably throw in some offensive code here
+                                success = False
+                                continue
+
                     success = True
                     targeted_list.append(target['planet_object'])
                     break
