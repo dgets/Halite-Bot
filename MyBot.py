@@ -35,38 +35,6 @@ def planet_sort_by_docked(planet_list):
 
     return sorted(nang, key=itemgetter('number_docked'))
 
-def find_first_unowned(planet_list, already_targeted, ship_id):
-    """
-    Check through the list of planets and return the first one that is not owned (or None), and not already targeted by another
-    ship in our fleet
-    :param List planet_list:
-    :param List of lists/hashes already_targeted:
-    :param integer ship_id:
-    :return: Unowned planet
-    :rtype: Planet
-    """
-    taken = False
-
-    for target in planet_list:  #each potential target planet
-        if not target.is_owned():   #if it isn't already occupied
-            for targeted_by in already_targeted:  #loop through already targeted list
-                if ship_id == targeted_by[1]:  #is this really necessary?
-                    return target
-                else:
-                    taken = True
-            #end targeted loop
-        #end not already occupied loop
-        if not taken:
-            return target
-        else:
-            taken = False
-    #no more potential target planets
-
-    if len(planet_list) > 0:
-        return planet_list[0]
-    else:
-        return 
-
 def other_entities_in_vicinity(current_entity, other_entities, scan_distance):
     """
     Check to see if there are any more specified entities within the immediate vicinity
@@ -117,6 +85,9 @@ DEBUGGING = {
         'reinforce': False,
         'targeting': True
 }
+ALGORITHM = {
+        'offense': True
+}
 
 #begin primary game loop
 while True:
@@ -151,14 +122,6 @@ while True:
                         continue
                     else:
                         #now is our potential target closer to the bad guys?
-                        #for player in game_map.all_players():
-                        #    if not player == game_map.get_me():
-                        #        if other_entities_in_vicinity(target['entity_object'], player.all_ships(), \
-                        #                target['entity_object'].calculate_distance_between(ship)):
-                                    #someone else is as close or closer
-                                    #we can probably throw in some offensive code here
-                        #            success = False
-                        #            continue
                         if other_entities_in_vicinity(target['entity_object'], get_enemy_ships(), \
                                 target['entity_object'].calculate_distance_between(ship)):
                             success = False
@@ -179,13 +142,15 @@ while True:
                             success = True
                             break
 
-                if not success:
-                    #find an enemy to attack
-                    if DEBUGGING['targeting']:
-                        logging.info('Targeting')
+                if ALGORITHM['offense']:
+                    if not success:
+                        #find an enemy to attack
+                        if DEBUGGING['targeting']:
+                            logging.info('Targeting')
 
-                    target = entity_sort_by_distance(ship, get_enemy_ships())[0]
-                    success = True
+                    
+                        target = entity_sort_by_distance(ship, get_enemy_ships())[0]
+                        success = True
 
             if not success:
                 #haven't found anything with the simple targeting criteria; what's next?
