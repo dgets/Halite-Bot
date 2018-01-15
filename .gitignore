@@ -1,3 +1,6 @@
+#other bots
+MyBotCV*.py
+
 #binaries/scripts for local use
 halite
 *.sh
