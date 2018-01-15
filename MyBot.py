@@ -27,22 +27,15 @@ def planet_sort_by_docked(planet_list):
     """
     Sort the given solar system into planets weighted by least ships docked
     :param array planet_list: List of planets to be weighted
-    :return: Array of weighted planets
-    :rtype: Array
+    :return: List of tuples of weighted planets
+    :rtype: List of Tuples
     """
 
-    #bubble sort, for now
-    cntr = 0
-    for iteration in (0, len(planet_list) - 2):
-        for current_planet in planet_list:
-            #swap
-            if len(current_planet.all_docked_ships) > len(planet_list[cntr + 1].all_docked_ships):
-                planet_list[cntr] = planet_list[cntr + 1]
-                planet_list[cntr + 1] = current_planet
+    nang = []
+    for ouah in planet_list:
+        nang.append({'planet_object' : ouah, 'number_docked' : len(ouah.all_docked_ships())})
 
-        cntr += 1
-
-    return planet_list
+    return sorted(nang, key=itemgetter('number_docked'))
 
 def find_first_unowned(planet_list, already_targeted, ship_id):
     """
@@ -94,10 +87,16 @@ def other_entities_in_vicinity(current_entity, other_entities, scan_distance):
     return None
 
 #entrance
+DEBUGGING = {
+        'reinforce': True
+}
+
 #begin primary game loop
 while True:
     game_map = game.update_map()
-    default_speed = int(hlt.constants.MAX_SPEED / 2)
+    my_id = game_map.get_me().id
+    #default_speed = int(hlt.constants.MAX_SPEED / 2)
+    default_speed = hlt.constants.MAX_SPEED
 
     targeted_list = []
     command_queue = []
@@ -105,30 +104,49 @@ while True:
 
     for ship in game_map.get_me().all_ships():
         if ship.docking_status != ship.DockingStatus.UNDOCKED:
+            #we need to check for incoming enemies and determine what to do here if so
             continue
         else:
-            #locate what we're going to call the best target for this particular ship right nao
-
+            #locate the 'best target' for this particular ship right nao
             success = False
-            for target in planet_sort_by_distance(ship, game_map.all_planets()):
-                if target['planet_object'].is_owned():
-                    continue
-                elif target['planet_object'] in targeted_list:
-                    continue
-                else:
-                    #now is our potential target closer to the bad guys?
-                    for player in game_map.all_players():
-                        if not player == game_map.get_me():
-                            if other_entities_in_vicinity(target['planet_object'], player.all_ships(), \
-                                    target['planet_object'].calculate_distance_between(ship)):
-                                #someone else is as close or closer
-                                #we can probably throw in some offensive code here
-                                success = False
-                                continue
-
-                    success = True
-                    targeted_list.append(target['planet_object'])
+            any_unowned = False
+            sorted_planets = planet_sort_by_distance(ship, game_map.all_planets())
+            for target in sorted_planets:
+                if not target['planet_object'].is_owned():
+                    any_unowned = True
                     break
+
+            if any_unowned:
+                for target in planet_sort_by_distance(ship, game_map.all_planets()):
+                    if target['planet_object'].is_owned():
+                        continue
+                    elif target['planet_object'] in targeted_list:
+                        continue
+                    else:
+                        #now is our potential target closer to the bad guys?
+                        for player in game_map.all_players():
+                            if not player == game_map.get_me():
+                                if other_entities_in_vicinity(target['planet_object'], player.all_ships(), \
+                                        target['planet_object'].calculate_distance_between(ship)):
+                                    #someone else is as close or closer
+                                    #we can probably throw in some offensive code here
+                                    success = False
+                                    continue
+
+                        success = True
+                        targeted_list.append(target['planet_object'])
+                        break
+            else:
+                #no unowned planets - reinforce my planets or go offensive
+                for target in planet_sort_by_distance(ship, game_map.all_planets()):
+                    if target['planet_object'].owner == my_id and not target['planet_object'].is_full():
+                        if DEBUGGING['reinforce']:
+                            logging.info('Reinforcing')
+
+                        if not other_entities_in_vicinity(target['planet_object'], player.all_ships(), \
+                                target['planet_object'].calculate_distance_between(ship)):
+                            success = True
+                            break
 
             if not success:
                 #haven't found anything with the simple targeting criteria; what's next?
@@ -152,4 +170,3 @@ while True:
     #end this ship's processing
 
     game.send_command_queue(command_queue)
-
