@@ -4,7 +4,7 @@ from operator import itemgetter
 
 logging.info("D4m0b0t running")
 
-game = hlt.Game("D4m0b0t")
+game = hlt.Game("D4m0b0t - Offense Capable beta with boobytrapping")
 
 debugging = True
 
@@ -79,15 +79,36 @@ def get_enemy_ships():
 
     return enemy_ships
 
+def remove_tapped_planets(testing_planets, avoid_planets):
+    """
+    Remove all avoid_planets from testing_planets
+    :param List testing_planets:
+    :param List avoid_planets:
+    :return: planets sans tapped planets
+    :rtype: List of planets
+    """
+    for bogus in avoid_planets:
+        if bogus in testing_planets:
+            testing_planets.remove(bogus)   #this is going to fail if python passes immutably
+
+    return testing_planets
+
 #entrance
 #constants
 DEBUGGING = {
         'reinforce': False,
-        'targeting': True
+        'targeting': False,
+        'boobytrapping': True
 }
 ALGORITHM = {
-        'offense': True
+        'reinforce': True,
+        'offense': True,
+        'boobytrapping': True
 }
+PRODUCTION = 6
+DOCKING_TURNS = 5
+
+planets_to_avoid = []
 
 #begin primary game loop
 while True:
@@ -102,20 +123,30 @@ while True:
 
     for ship in game_map.get_me().all_ships():
         if ship.docking_status != ship.DockingStatus.UNDOCKED:
+            if ALGORITHM['boobytrapping'] and ship.docking_status == ship.DockingStatus.DOCKED:    #fully docked
+                #is it time to bid thee farewell?
+                if ship.planet.remaining_resources < ship.planet.num_docking_spots * DOCKING_TURNS * PRODUCTION:
+                    if not ship.planet in planets_to_avoid:
+                        if DEBUGGING['boobytrapping']:
+                            logging.info("Leaving a present")
+
+                        planets_to_avoid.append(ship.planet)
+                        ship.undock()
             #we need to check for incoming enemies and determine what to do here if so
             continue
         else:
             #locate the 'best target' for this particular ship right nao
             success = False
             any_unowned = False
-            sorted_planets = entity_sort_by_distance(ship, game_map.all_planets())
+            sorted_planets = remove_tapped_planets(entity_sort_by_distance(ship, game_map.all_planets()), planets_to_avoid)
             for target in sorted_planets:
                 if not target['entity_object'].is_owned():
                     any_unowned = True
                     break
 
             if any_unowned:
-                for target in entity_sort_by_distance(ship, game_map.all_planets()):
+                #for target in entity_sort_by_distance(ship, game_map.all_planets()):
+                for target in sorted_planets:
                     if target['entity_object'].is_owned():
                         continue
                     elif target['entity_object'] in targeted_list:
@@ -130,9 +161,10 @@ while True:
                         success = True
                         targeted_list.append(target['entity_object'])
                         break
-            else:
+            elif ALGORITHM['reinforce']:
                 #no unowned planets - reinforce my planets or go offensive
-                for target in entity_sort_by_distance(ship, game_map.all_planets()):
+                #for target in entity_sort_by_distance(ship, game_map.all_planets()):
+                for target in sorted_planets:
                     if target['entity_object'].owner == my_id and not target['planet_object'].is_full():
                         if DEBUGGING['reinforce']:
                             logging.info('Reinforcing')
@@ -147,7 +179,6 @@ while True:
                         #find an enemy to attack
                         if DEBUGGING['targeting']:
                             logging.info('Targeting')
-
                     
                         target = entity_sort_by_distance(ship, get_enemy_ships())[0]
                         success = True
