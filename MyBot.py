@@ -125,7 +125,7 @@ while True:
         if ship.docking_status != ship.DockingStatus.UNDOCKED:
             if ALGORITHM['boobytrapping'] and ship.docking_status == ship.DockingStatus.DOCKED:    #fully docked
                 #is it time to bid thee farewell?
-                if ship.planet.remaining_resources < ship.planet.num_docking_spots * DOCKING_TURNS * PRODUCTION:
+                if ship.planet.remaining_resources <= (ship.planet.num_docking_spots * DOCKING_TURNS * PRODUCTION) + 10:
                     if not ship.planet in planets_to_avoid:
                         if DEBUGGING['boobytrapping']:
                             logging.info("Leaving a present")
@@ -174,14 +174,14 @@ while True:
                             success = True
                             break
 
-                if ALGORITHM['offense']:
-                    if not success:
-                        #find an enemy to attack
-                        if DEBUGGING['targeting']:
-                            logging.info('Targeting')
+            if ALGORITHM['offense']:
+                if not success:
+                    #find an enemy to attack
+                    if DEBUGGING['targeting']:
+                        logging.info('Targeting')
                     
-                        target = entity_sort_by_distance(ship, get_enemy_ships())[0]
-                        success = True
+                    target = entity_sort_by_distance(ship, get_enemy_ships())[0]
+                    success = True
 
             if not success:
                 #haven't found anything with the simple targeting criteria; what's next?
