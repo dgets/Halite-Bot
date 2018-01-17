@@ -116,7 +116,7 @@ DEBUGGING = {
         'planet_selection': True,
         'targeting': True,
         'boobytrapping': True,
-        'method_entry': True
+        'method_entry': False
 }
 ALGORITHM = {
         'reinforce': True,
@@ -128,6 +128,7 @@ PRODUCTION = 6
 DOCKING_TURNS = 5
 
 planets_to_avoid = []
+dock_process_list = {}
 
 #init
 log = logging.getLogger(__name__)
@@ -135,6 +136,9 @@ logging.info("D4m0b0t active")
 
 #begin primary game loop
 while True:
+    if DEBUGGING['ship_loop']:
+        log.debug("-+Beginning turn+-")
+        
     game_map = game.update_map()
     my_id = game_map.get_me().id
     #default_speed = int(hlt.constants.MAX_SPEED / 2)
@@ -147,11 +151,19 @@ while True:
     command_queue = []
 
     for ship in game_map.get_me().all_ships():
-        if ship.docking_status == ship.DockingStatus.DOCKED:
+        if ship.docking_status == ship.DockingStatus.DOCKING:
+            ship.dock(dock_process_list[ship])
+        elif ship.docking_status == ship.DockingStatus.UNDOCKING:
+            ship.undock(dock_process_list[ship])
+        elif ship.docking_status == ship.DockingStatus.DOCKED:
             if DEBUGGING['ship_loop']:
-                log.debug("Docked ship #" + str(ship_loop) + ": ")
+                log.debug("-+=Docked ship #" + str(ship_loop) + "=+-")
+            
+            #did we just complete docking?
+            if ship in dock_process_list.keys():
+                dock_process_list.remove(ship)
                 
-            if ALGORITHM['boobytrapping'] and ship.docking_status == ship.DockingStatus.DOCKED:    #fully docked
+            if ALGORITHM['boobytrapping']:    #fully docked
                 #is it time to bid thee farewell?
                 if ship.planet.remaining_resources <= (ship.planet.num_docking_spots * DOCKING_TURNS * PRODUCTION) + 10:
                     if not ship.planet in planets_to_avoid:
@@ -165,46 +177,54 @@ while True:
             continue
         elif ship.docking_status == ship.DockingStatus.UNDOCKED:
             if DEBUGGING['ship_loop']:
-                log.debug("Undocked ship #" + str(ship_loop) + ": ")
+                log.debug("-+=Undocked ship #" + str(ship_loop) + "=+-")
+                
+            #did we just complete undocking?
+            if ship in dock_process_list.keys():
+                dock_process_list.remove(ship)
                 
             #locate the 'best target' for this particular ship right nao
             if DEBUGGING['targeting']:
                 log.debug("Entered planet selection")
                 
             success = False
-            any_unowned = False
             ranked_planets = entity_sort_by_distance(ship, game_map.all_planets())
+            enemies = get_enemy_ships()
+            
             if len(planets_to_avoid) > 0:
                 ranked_untapped_planets = remove_tapped_planets(ranked_planets, planets_to_avoid)
             else:
                 ranked_untapped_planets = ranked_planets
                 
+            #go for unclaimed planet
             for target in ranked_untapped_planets:
-                if not target['entity_object'].is_owned():
-                    #go for unclaimed planet
-                    for target in ranked_untapped_planets:
-                        if target['entity_object'] in targeted_list:
-                            if DEBUGGING['targeting']:
-                                log.debug(" - planet already targeted")
+                if target['entity_object'] in targeted_list:
+                    if DEBUGGING['targeting']:
+                        log.debug(" - planet already targeted")
                                 
-                            continue
-                        else:
-                            if DEBUGGING['targeting']:
-                                log.debug(" - selected target")
+                    continue
+                else:
+                    if DEBUGGING['targeting']:
+                        log.debug(" - selected potential target")
                                 
-                            #now is our potential target closer to the bad guys?
-                            if other_entities_in_vicinity(target['entity_object'], get_enemy_ships(), \
-                                                          target['entity_object'].calculate_distance_between(ship)):
-                                success = False
-                                continue
+                    #now is our potential target closer to the bad guys?
+                    if other_entities_in_vicinity(target['entity_object'], enemies, \
+                                                  target['entity_object'].calculate_distance_between(ship)):
+                        success = False
+                        continue
 
-                            success = True
-                            targeted_list.append(target['entity_object'])
-                            break
+                    if DEBUGGING['targeting']:
+                        log.debug(" - selected final target")
+                                
+                    success = True
+                    targeted_list.append(target['entity_object'])
+                    break
 
-            enemies_ranked = entity_sort_by_distance(ship, get_enemy_ships())
-            #ranked_untapped_planets = remove_tapped_planets(entity_sort_by_distance(ship, game_map.all_planets()), planets_to_avoid)
-            if ranked_planets[0]['distance'] <= enemies_ranked[0]['distance']:
+            if DEBUGGING['targeting']:
+                log.debug(" - proceeding with final target calculations")
+                
+            enemies_ranked = entity_sort_by_distance(ship, enemies)
+            if target['distance'] >= enemies_ranked[0]['distance']:
                 if ALGORITHM['reinforce']:
                     if DEBUGGING['reinforce']:
                         log.debug("Entered reinforce")
@@ -216,21 +236,21 @@ while True:
                             if DEBUGGING['reinforce']:
                                 log.debug('Reinforcing')
 
-                                if not other_entities_in_vicinity(target['entity_object'], player.all_ships(), \
-                                                                  target['entity_object'].calculate_distance_between(ship)):
-                                    success = True
-                                    break
+                            if not other_entities_in_vicinity(target['entity_object'], player.all_ships(), \
+                                                              target['entity_object'].calculate_distance_between(ship)):
+                                success = True
+                                break
                                 
-                                if target['entity_object'] in game_map.all_planets() and ship.can_dock(target['entity_object']):
-                                    command_queue.append(ship.dock(target['entity_object']))
-                                    continue
-                                else:
-                                    # collision_risk_angle = other_ships_in_vicinity(ship, game_map.get_me().all_ships(), 3)
-                                    navigate_command = ship.navigate(
-                                        ship.closest_point_to(target['entity_object']),
-                                        game_map,
-                                        speed=default_speed,
-                                        ignore_ships=False)
+                            if target['entity_object'] in game_map.all_planets() and ship.can_dock(target['entity_object']):
+                                command_queue.append(ship.dock(target['entity_object']))
+                                continue
+                            else:
+                                # collision_risk_angle = other_ships_in_vicinity(ship, game_map.get_me().all_ships(), 3)
+                                navigate_command = ship.navigate(
+                                    ship.closest_point_to(target['entity_object']),
+                                    game_map,
+                                    speed=default_speed,
+                                    ignore_ships=False)
             else:
                 if ALGORITHM['offense']:
                     if DEBUGGING['offense']:
@@ -241,21 +261,22 @@ while True:
                         if DEBUGGING['targeting']:
                             log.debug('Targeting')
                     
-                            target = entity_sort_by_distance(ship, get_enemy_ships())[0]
-                            success = True
+                        target = entity_sort_by_distance(ship, enemies)[0]
+                        success = True
 
             if not success:
                 #haven't found anything with the simple targeting criteria; what's next?
                 if len(targeted_list) > 0:
                     target = entity_sort_by_distance(ship, targeted_list)[0]
             
-            if target['entity_object'] in game_map.all_planets() and ship.can_dock(target['entity_object']):
-                if DEBUGGING['targeting']:
-                    log.debug("Fallback docking")
+            if target['entity_object'] in game_map.all_planets():
+                if ship.can_dock(target['entity_object']):
+                    if DEBUGGING['targeting']:
+                        log.debug("Fallback docking")
                     
-                #command_queue.append(ship.dock(target['entity_object']))
-                navigate_command = ship.dock(target['entity_object'])
-                continue
+                    #command_queue.append(ship.dock(target['entity_object']))
+                    navigate_command = ship.dock(target['entity_object'])
+                    continue
             else:
                 #collision_risk_angle = other_ships_in_vicinity(ship, game_map.get_me().all_ships(), 3)
                 navigate_command = ship.navigate(
@@ -267,7 +288,7 @@ while True:
             if navigate_command:
                 command_queue.append(navigate_command)
         #end for undocked ship
+        ship_loop += 1
     #end this ship's processing
 
-    ship_loop += 1
     game.send_command_queue(command_queue)
