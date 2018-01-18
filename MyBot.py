@@ -210,6 +210,9 @@ while True:
                     #now is our potential target closer to the bad guys?
                     if other_entities_in_vicinity(target['entity_object'], enemies, \
                                                   target['entity_object'].calculate_distance_between(ship)):
+                        if DEBUGGING['targeting']:
+                            log.debug("  - Too close to enemy ships")
+                            
                         success = False
                         continue
 
@@ -263,7 +266,7 @@ while True:
                     
                         target = entity_sort_by_distance(ship, enemies)[0]
                         success = True
-
+                
             if not success:
                 #haven't found anything with the simple targeting criteria; what's next?
                 if len(targeted_list) > 0:
@@ -277,9 +280,9 @@ while True:
                     #command_queue.append(ship.dock(target['entity_object']))
                     navigate_command = ship.dock(target['entity_object'])
                     continue
-            else:
-                #collision_risk_angle = other_ships_in_vicinity(ship, game_map.get_me().all_ships(), 3)
-                navigate_command = ship.navigate(
+                else:
+                    #collision_risk_angle = other_ships_in_vicinity(ship, game_map.get_me().all_ships(), 3)
+                    navigate_command = ship.navigate(
                         ship.closest_point_to(target['entity_object']),
                         game_map,
                         speed = default_speed,
