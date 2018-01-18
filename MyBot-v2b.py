@@ -2,9 +2,15 @@ import hlt
 import logging
 from operator import itemgetter
 
-game = hlt.Game("D4m0b0t - v1b - flow restructuring")
+game = hlt.Game("D4m0b0t - v2a - flow restructuring")
 
 def docked_actions(current_ship):
+    """
+    Determine what to do with our docked ship
+    :param Ship current_ship:
+    :return: command to append to the command_queue
+    :rtype: List
+    """
     if DEBUGGING['ship_loop']:
         log.debug("-+=Docked ship #" + str(ship_loop) + "=+-")
             
@@ -22,7 +28,74 @@ def docked_actions(current_ship):
                 planets_to_avoid.append(current_ship.planet)
                 command_queue.append(ship.undock(current_ship.planet))
 
-def undocked_actions(current_ship)::
+def undocked_actions(current_ship):
+    """
+    Determine what to do with the undocked ship
+    :param Ship current_ship:
+    :return: command to append to the command_queue
+    :rtype: List
+    """
+    if DEBUGGING['ship_loop']:
+        log.debug("-+=Undocked ship #" + str(current_ship.id) + "=+-")
+                
+    #did we just complete undocking?
+    if current_ship in dock_process_list.keys():
+        undock_process_list.remove(current_ship)
+                
+    #locate the 'best target' for this particular ship right nao
+    if DEBUGGING['targeting']:
+        log.debug("Thinking...")
+                
+    success = False
+    ranked_planets_by_distance = entity_sort_by_distance(current_ship, game_map.all_planets())
+    ranked_our_planets_by_docked = planet_sort_ours_by_docked(game_map.all_planets())
+    enemies = get_enemy_ships()
+
+    #avoid boobytraps in our considerations
+    if len(planets_to_avoid) > 0:
+        ranked_untapped_planets = remove_tapped_planets(ranked_planets_by_distance, planets_to_avoid)
+    else:
+        ranked_untapped_planets = ranked_planets_by_distance
+
+    #do we navigate to a planet, reinforce, or go offensive?
+    potential_angle = other_entities_in_vicinity(current_ship, enemies, ranked_untapped_planets[0]['distance'])
+    if ALGORITHM['offense'] and potential_angle:
+        #another entity is closer or at the same distance; we need to go offensive
+        if DEBUGGING['offense']:
+            log.debug("Engaging enemy")
+
+        navigate_command = current_ship.navigate(
+                current_ship.closest_point_to(entity_sort_by_distance(current_ship, enemies)[0]),
+                game_map,
+                speed = default_speed,
+                ignore_ships = False)
+    elif ALGORITHM['reinforce'] and len(ranked_our_planets_by_docked) > 0:
+        if ranked_our_planets_by_docked[0]['number_docked'] > 0:
+            #reinforce that sucker
+            if DEBUGGING['reinforce']:
+                log.debug("Reinforcing planet #" + str(ranked_our_planets_by_docked[0]['entity_object'].id))
+
+            navigate_command = current_ship.navigate(
+                    current.ship.closest_point_to(ranked_our_planets_by_docked[0]['entity_object']),
+                    game_map,
+                    speed = default_speed,
+                    ignore_ships = False)
+    else:
+        #navigate to a planet or begin docking
+        if ship.can_dock(ranked_untapped_planets[0]['entity_object']):
+            if DEBUGGING['planet_selection']:
+                log.debug("Selecting planet #" + str(ranked_untapped_planets[0]['entity_object'].id))
+                
+            dock_process_list['ship'] = ranked_untapped_planets[0]['entity_object']
+            navigate_command = ship.dock(ranked_untapped_planets[0]['entity_object'])
+        else:
+            navigate_command = current_ship.navigate(
+                    current_ship.closest_point_to(ranked_untapped_planets[0]['entity_object']),
+                    game_map,
+                    speed = default_speed,
+                    ignore_ships = False)
+
+    return navigate_command
 
 
 def entity_sort_by_distance(current_ship, planet_list):
@@ -42,7 +115,7 @@ def entity_sort_by_distance(current_ship, planet_list):
 
     return sorted(nang, key=itemgetter('distance'))
 
-def planet_sort_by_docked(planet_list):
+def planet_sort_ours_by_docked(planet_list):
     """
     Sort the given solar system into planets weighted by least ships docked
     :param List planet_list: List of planets to be weighted
@@ -54,7 +127,8 @@ def planet_sort_by_docked(planet_list):
         
     nang = []
     for ouah in planet_list:
-        nang.append({'entity_object' : ouah, 'number_docked' : len(ouah.all_docked_ships())})
+        if ouah.owner == game_map.get_me():
+            nang.append({'entity_object' : ouah, 'number_docked' : len(ouah.all_docked_ships())})
 
     return sorted(nang, key=itemgetter('number_docked'))
 
@@ -150,6 +224,7 @@ DOCKING_TURNS = 5
 
 planets_to_avoid = []
 dock_process_list = {}
+undock_process_list = {}
 
 #init
 log = logging.getLogger(__name__)
@@ -176,10 +251,17 @@ while True:
             ship.undock(dock_process_list[ship])
         elif ship.docking_status == ship.DockingStatus.DOCKED:
             if DEBUGGING['ship_loop']:
-                log.debug("-+=Docked ship #" + str(ship_loop) + "=+-")
+                log.debug("-+=Docked ship #" + str(ship.id) + "=+-")
             
-            #did we just complete docking?
-            if ship in dock_process_list.keys():
-                dock_process_list.remove(ship)
+            command_queue.append(docked_actions(ship))
+        else:   #ship.DockingStatus.UNDOCKED
+            if DEBUGGING['ship_loop']:
+                log.debug("-+=Undocked ship #" + str(ship.id) + "=+-")
+
+            command_queue.append(undocked_actions(ship))
+    #end per-ship iteration
+
+    game.send_command_queue(command_queue)
+    
 
 
