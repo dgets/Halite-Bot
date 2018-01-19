@@ -11,21 +11,29 @@ def docked_actions(current_ship):
     :return: command to append to the command_queue
     :rtype: List
     """
+    if DEBUGGING['method_entry']:
+        log.debug("docked_actions():")
+        
     if DEBUGGING['ship_loop']:
-        log.debug("-+=Docked ship #" + str(ship_loop) + "=+-")
+        log.debug("-+=Docked ship #" + str(current_ship.id) + "=+-")
             
     #did we just complete docking?
     if current_ship in dock_process_list.keys():
+        if DEBUGGING['docking_procedures']:
+            log.debug(" - completed docking")
+            
         dock_process_list.remove(current_ship)
                 
     if ALGORITHM['boobytrapping']:    #fully docked
         #is it time to bid thee farewell?
         if current_ship.planet.remaining_resources <= (current_ship.planet.num_docking_spots * DOCKING_TURNS * PRODUCTION) + 10:
+            #syntax/logic in the following conditional (specifically the 'not') may be phrased wrong
             if not current_ship.planet in planets_to_avoid:
                 if DEBUGGING['boobytrapping']:
                     log.debug("Leaving a present")
 
                 planets_to_avoid.append(current_ship.planet)
+                undock_process_list[current_ship] = current_ship.planet
                 command_queue.append(ship.undock(current_ship.planet))
 
 def undocked_actions(current_ship):
@@ -35,11 +43,17 @@ def undocked_actions(current_ship):
     :return: command to append to the command_queue
     :rtype: List
     """
+    if DEBUGGING['method_entry']:
+        log.debug("undocked_actions():")
+        
     if DEBUGGING['ship_loop']:
         log.debug("-+=Undocked ship #" + str(current_ship.id) + "=+-")
                 
     #did we just complete undocking?
-    if current_ship in dock_process_list.keys():
+    if current_ship in undock_process_list.keys():
+        if DEBUGGING['docking_procedures']:
+            log.debug(" - completed undocking")
+            
         undock_process_list.remove(current_ship)
                 
     #locate the 'best target' for this particular ship right nao
@@ -56,7 +70,7 @@ def undocked_actions(current_ship):
         ranked_untapped_planets = remove_tapped_planets(ranked_planets_by_distance, planets_to_avoid)
     else:
         ranked_untapped_planets = ranked_planets_by_distance
-
+        
     #do we navigate to a planet, reinforce, or go offensive?
     potential_angle = other_entities_in_vicinity(current_ship, enemies, ranked_untapped_planets[0]['distance'])
     if ALGORITHM['offense'] and potential_angle:
@@ -65,35 +79,55 @@ def undocked_actions(current_ship):
             log.debug("Engaging enemy")
 
         navigate_command = current_ship.navigate(
-                current_ship.closest_point_to(entity_sort_by_distance(current_ship, enemies)[0]),
+                current_ship.closest_point_to(entity_sort_by_distance(current_ship, enemies)[0]['entity_object']),
                 game_map,
                 speed = default_speed,
                 ignore_ships = False)
     elif ALGORITHM['reinforce'] and len(ranked_our_planets_by_docked) > 0:
-        if ranked_our_planets_by_docked[0]['number_docked'] > 0:
-            #reinforce that sucker
-            if DEBUGGING['reinforce']:
-                log.debug("Reinforcing planet #" + str(ranked_our_planets_by_docked[0]['entity_object'].id))
+        #reinforce that sucker
+        if DEBUGGING['reinforce']:
+            log.debug("Reinforcing planet #" + str(ranked_our_planets_by_docked[0]['entity_object'].id))
 
-            navigate_command = current_ship.navigate(
-                    current.ship.closest_point_to(ranked_our_planets_by_docked[0]['entity_object']),
-                    game_map,
-                    speed = default_speed,
-                    ignore_ships = False)
-    else:
-        #navigate to a planet or begin docking
-        if ship.can_dock(ranked_untapped_planets[0]['entity_object']):
-            if DEBUGGING['planet_selection']:
-                log.debug("Selecting planet #" + str(ranked_untapped_planets[0]['entity_object'].id))
-                
-            dock_process_list['ship'] = ranked_untapped_planets[0]['entity_object']
-            navigate_command = ship.dock(ranked_untapped_planets[0]['entity_object'])
+        if current_ship.can_dock(ranked_our_planets_by_docked[0]['entity_object']):
+            if DEBUGGING['reinforce']:
+                log.debug(" - docking @ planet #" + str(ranked_our_planets_by_docked[0]['entity_object'].id))
+            
+            navigate_command = current_ship.dock(ranked_our_planets_by_docked[0]['entity_object'])
         else:
+            if DEBUGGING['reinforce']:
+                log.debug(" - navigating to reinforce planet #" + str(ranked_untapped_planets[0]['entity_object']))
+                
             navigate_command = current_ship.navigate(
                     current_ship.closest_point_to(ranked_untapped_planets[0]['entity_object']),
                     game_map,
                     speed = default_speed,
                     ignore_ships = False)
+    else:
+        #navigate to a planet or begin docking
+        for potential_planet in ranked_untapped_planets:
+            if potential_planet['entity_object'] in targeted_list:
+                if DEBUGGING['targeting']:
+                    log.debug(" - skipping already targeted planet #" + str(potential_planet['entity_object'].id))
+                    
+                continue
+            if current_ship.can_dock(potential_planet['entity_object']):    #why ship & not current_ship again?
+                if DEBUGGING['planet_selection']:
+                    log.debug(" - docking with planet #" + str(potential_planet['entity_object'].id))
+                
+                #dock_process_list[current_ship] = potential_planet['entity_object']
+                navigate_command = current_ship.dock(potential_planet['entity_object'])
+                break
+            elif potential_planet['entity_object'] not in targeted_list:
+                if DEBUGGING['targeting']:
+                    log.debug(" - targeting planet #" + str(potential_planet['entity_object'].id))
+                    
+                targeted_list.append(potential_planet['entity_object'])
+                navigate_command = current_ship.navigate(
+                        current_ship.closest_point_to(potential_planet['entity_object']),
+                        game_map,
+                        speed = default_speed,
+                        ignore_ships = False)
+                break
 
     return navigate_command
 
@@ -129,6 +163,12 @@ def planet_sort_ours_by_docked(planet_list):
     for ouah in planet_list:
         if ouah.owner == game_map.get_me():
             nang.append({'entity_object' : ouah, 'number_docked' : len(ouah.all_docked_ships())})
+            
+    if len(nang) > 0:
+        #remove planets with no docking slots open
+        for ouah in nang:
+            if ouah['number_docked'] >= ouah['entity_object'].num_docking_spots:
+                nang.remove(ouah)
 
     return sorted(nang, key=itemgetter('number_docked'))
 
@@ -142,7 +182,7 @@ def other_entities_in_vicinity(current_entity, other_entities, scan_distance):
     :rtype: float
     """
     if DEBUGGING['method_entry']:
-        log.debug("other_entities_in_vicinity")
+        log.debug("other_entities_in_vicinity()")
         
     for other_entity in other_entities:
         if current_entity.calculate_distance_between(other_entity) <= scan_distance:
@@ -206,15 +246,16 @@ def remove_tapped_planets(testing_planets, avoid_planets):
 #constants
 DEBUGGING = {
         'ship_loop': True,
+        'docking_procedures': True,
         'reinforce': True,
         'offense': True,
         'planet_selection': True,
         'targeting': True,
         'boobytrapping': True,
-        'method_entry': False
+        'method_entry': True
 }
 ALGORITHM = {
-        'reinforce': True,
+        'reinforce': False,
         'offense': True,
         'boobytrapping': True
 }
@@ -241,24 +282,20 @@ while True:
     #default_speed = int(hlt.constants.MAX_SPEED / 1.75)
     default_speed = hlt.constants.MAX_SPEED
 
-    targeted_list = []
     command_queue = []
+    targeted_list = []
 
     for ship in game_map.get_me().all_ships():
-        if ship.docking_status == ship.DockingStatus.DOCKING:
-            ship.dock(dock_process_list[ship])
-        elif ship.docking_status == ship.DockingStatus.UNDOCKING:
-            ship.undock(dock_process_list[ship])
-        elif ship.docking_status == ship.DockingStatus.DOCKED:
-            if DEBUGGING['ship_loop']:
-                log.debug("-+=Docked ship #" + str(ship.id) + "=+-")
-            
-            command_queue.append(docked_actions(ship))
-        else:   #ship.DockingStatus.UNDOCKED
-            if DEBUGGING['ship_loop']:
-                log.debug("-+=Undocked ship #" + str(ship.id) + "=+-")
-
-            command_queue.append(undocked_actions(ship))
+        if ship.docking_status == ship.DockingStatus.DOCKED:
+            new_command = docked_actions(ship)
+            if new_command:
+                command_queue.append(new_command)
+            continue
+        elif ship.docking_status == ship.DockingStatus.UNDOCKED:
+            new_command = undocked_actions(ship)
+            if new_command:
+                command_queue.append(new_command)
+            continue
     #end per-ship iteration
 
     game.send_command_queue(command_queue)
