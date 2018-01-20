@@ -73,7 +73,7 @@ def undocked_actions(current_ship):
     #    ranked_untapped_planets = ranked_planets_by_distance
         
     #do we navigate to a planet, reinforce, or go offensive?
-    #navigate to a planet or begin docking
+    #navigate to a planet or begin docking (this also currently handles reinforcing)
     for potential_planet in remove_held_planets(ranked_untapped_planets):
         if (potential_planet['entity_object'] in targeted_list) or \
             (potential_planet['entity_object'].num_docking_spots == len(potential_planet['entity_object'].all_docked_ships())):
@@ -106,8 +106,8 @@ def undocked_actions(current_ship):
             break
         
     if not navigate_command:    
-        potential_angle = other_entities_in_vicinity(current_ship, enemies, ranked_untapped_planets[0]['distance'])
-        if ALGORITHM['offense'] and potential_angle:
+        #potential_angle = other_entities_in_vicinity(current_ship, enemies, ranked_untapped_planets[0]['distance'])
+        if ALGORITHM['offense']: # and potential_angle:
             #another entity is closer or at the same distance; we need to go offensive
             if DEBUGGING['offense']:
                 log.debug("Engaging enemy")

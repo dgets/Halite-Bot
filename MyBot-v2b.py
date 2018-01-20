@@ -56,10 +56,6 @@ def undocked_actions(current_ship):
             
         undock_process_list.remove(current_ship)
                 
-    #locate the 'best target' for this particular ship right nao
-    if DEBUGGING['targeting']:
-        log.debug("Thinking...")
-                
     success = False
     ranked_planets_by_distance = entity_sort_by_distance(current_ship, game_map.all_planets())
     ranked_our_planets_by_docked = planet_sort_ours_by_docked(game_map.all_planets())
@@ -95,7 +91,7 @@ def undocked_actions(current_ship):
             break
         elif potential_planet['entity_object'] not in targeted_list:
             if DEBUGGING['targeting']:
-                log.debug(" - targeting planet #" + str(potential_planet['entity_object'].id))
+                log.debug(" - navigating to planet #" + str(potential_planet['entity_object'].id))
                     
             targeted_list.append(potential_planet['entity_object'])
             navigate_command = current_ship.navigate(
