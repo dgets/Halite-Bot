@@ -2,7 +2,7 @@ import hlt
 import logging
 from operator import itemgetter
 
-game = hlt.Game("D4m0b0t - v2b - rewrite & flow restructuring")
+game = hlt.Game("D4m0b0t - v2a - flow restructuring")
 
 def docked_actions(current_ship):
     """
@@ -64,99 +64,73 @@ def undocked_actions(current_ship):
     ranked_planets_by_distance = entity_sort_by_distance(current_ship, game_map.all_planets())
     ranked_our_planets_by_docked = planet_sort_ours_by_docked(game_map.all_planets())
     enemies = get_enemy_ships()
-    navigate_command = None
 
     #avoid boobytraps in our considerations
-    #if len(planets_to_avoid) > 0:
-    ranked_untapped_planets = remove_tapped_planets(ranked_planets_by_distance, planets_to_avoid)
-    #else:
-    #    ranked_untapped_planets = ranked_planets_by_distance
+    if len(planets_to_avoid) > 0:
+        ranked_untapped_planets = remove_tapped_planets(ranked_planets_by_distance, planets_to_avoid)
+    else:
+        ranked_untapped_planets = ranked_planets_by_distance
         
     #do we navigate to a planet, reinforce, or go offensive?
-    #navigate to a planet or begin docking (this also currently handles reinforcing)
-    for potential_planet in remove_held_planets(ranked_untapped_planets):
-        if (potential_planet['entity_object'] in targeted_list) or \
-            (potential_planet['entity_object'].num_docking_spots == len(potential_planet['entity_object'].all_docked_ships())):
+    potential_angle = other_entities_in_vicinity(current_ship, enemies, ranked_untapped_planets[0]['distance'])
+    if ALGORITHM['offense'] and potential_angle:
+        #another entity is closer or at the same distance; we need to go offensive
+        if DEBUGGING['offense']:
+            log.debug("Engaging enemy")
+
+        navigate_command = current_ship.navigate(
+                current_ship.closest_point_to(entity_sort_by_distance(current_ship, enemies)[0]['entity_object']),
+                game_map,
+                speed = default_speed,
+                ignore_ships = False)
+    elif ALGORITHM['reinforce'] and len(ranked_our_planets_by_docked) > 0:
+        #reinforce that sucker
+        if DEBUGGING['reinforce']:
+            log.debug("Reinforcing planet #" + str(ranked_our_planets_by_docked[0]['entity_object'].id))
+
+        if current_ship.can_dock(ranked_our_planets_by_docked[0]['entity_object']):
+            if DEBUGGING['reinforce']:
+                log.debug(" - docking @ planet #" + str(ranked_our_planets_by_docked[0]['entity_object'].id))
+            
+            navigate_command = current_ship.dock(ranked_our_planets_by_docked[0]['entity_object'])
+        else:
+            if DEBUGGING['reinforce']:
+                log.debug(" - navigating to reinforce planet #" + str(ranked_untapped_planets[0]['entity_object']))
+                
+            navigate_command = current_ship.navigate(
+                    current_ship.closest_point_to(ranked_untapped_planets[0]['entity_object']),
+                    game_map,
+                    speed = default_speed,
+                    ignore_ships = False)
+    else:
+        #navigate to a planet or begin docking
+        for potential_planet in ranked_untapped_planets:
+            if potential_planet['entity_object'] in targeted_list:
                 if DEBUGGING['targeting']:
-                    log.debug(" - skipping already targeted or full planet #" + str(potential_planet['entity_object'].id))
+                    log.debug(" - skipping already targeted planet #" + str(potential_planet['entity_object'].id))
                     
                 continue
-        if current_ship.can_dock(potential_planet['entity_object']):    #why ship & not current_ship again?
-            if DEBUGGING['planet_selection']:
-                log.debug(" - docking with planet #" + str(potential_planet['entity_object'].id))
-                
-            #dock_process_list[current_ship] = potential_planet['entity_object']
-            navigate_command = current_ship.dock(potential_planet['entity_object'])
-            if potential_planet['entity_object'] in targeted_list:
+            if current_ship.can_dock(potential_planet['entity_object']):    #why ship & not current_ship again?
                 if DEBUGGING['planet_selection']:
-                    log.debug(" - removing planet #" + str(potential_planet['entity_object'].id + " from targeted_list"))
-                        
-                targeted_list.remove(potential_planet['entity_object'])
-            break
-        elif potential_planet['entity_object'] not in targeted_list:
-            if DEBUGGING['targeting']:
-                log.debug(" - targeting planet #" + str(potential_planet['entity_object'].id))
-                    
-            targeted_list.append(potential_planet['entity_object'])
-            navigate_command = current_ship.navigate(
-                    current_ship.closest_point_to(potential_planet['entity_object']),
-                    game_map,
-                    speed = default_speed,
-                    ignore_ships = False)
-            break
-        
-    if not navigate_command:    
-        #potential_angle = other_entities_in_vicinity(current_ship, enemies, ranked_untapped_planets[0]['distance'])
-        if ALGORITHM['offense']: # and potential_angle:
-            #another entity is closer or at the same distance; we need to go offensive
-            if DEBUGGING['offense']:
-                log.debug("Engaging enemy")
-
-                navigate_command = current_ship.navigate(
-                    current_ship.closest_point_to(entity_sort_by_distance(current_ship, enemies)[0]['entity_object']),
-                    game_map,
-                    speed = default_speed,
-                    ignore_ships = False)
-            elif ALGORITHM['reinforce'] and len(ranked_our_planets_by_docked) > 0:
-                #reinforce that sucker
-                if DEBUGGING['reinforce']:
-                    log.debug("Reinforcing planet #" + str(ranked_our_planets_by_docked[0]['entity_object'].id))
-
-                if current_ship.can_dock(ranked_our_planets_by_docked[0]['entity_object']):
-                    if DEBUGGING['reinforce']:
-                        log.debug(" - docking @ planet #" + str(ranked_our_planets_by_docked[0]['entity_object'].id))
-            
-                    navigate_command = current_ship.dock(ranked_our_planets_by_docked[0]['entity_object'])
-                else:
-                    if DEBUGGING['reinforce']:
-                        log.debug(" - navigating to reinforce planet #" + str(ranked_untapped_planets[0]['entity_object']))
+                    log.debug(" - docking with planet #" + str(potential_planet['entity_object'].id))
                 
-                    navigate_command = current_ship.navigate(
-                        current_ship.closest_point_to(ranked_untapped_planets[0]['entity_object']),
+                #dock_process_list[current_ship] = potential_planet['entity_object']
+                navigate_command = current_ship.dock(potential_planet['entity_object'])
+                break
+            elif potential_planet['entity_object'] not in targeted_list:
+                if DEBUGGING['targeting']:
+                    log.debug(" - targeting planet #" + str(potential_planet['entity_object'].id))
+                    
+                targeted_list.append(potential_planet['entity_object'])
+                navigate_command = current_ship.navigate(
+                        current_ship.closest_point_to(potential_planet['entity_object']),
                         game_map,
                         speed = default_speed,
                         ignore_ships = False)
+                break
 
     return navigate_command
 
-def remove_held_planets(planets_list):
-    """
-    Remove all planets from the list that are already held by a player
-    :param List planets_list: List of Tuples containing planet_object => object
-    :return List with owned planets removed:
-    :rtype: List of Typles
-    """
-    if DEBUGGING['method_entry']:
-        log.debug("remove_held_planets():")
-        
-    for possibly_owned_planet in planets_list:
-        if not possibly_owned_planet:
-            if DEBUGGING['targeting']:
-                log.debug(" - removing owned planet #" + str(possibly_owned_planet['entity_object'].id) + " from list")
-                
-            planets_list.remove(possibly_owned_planet)
-            
-    return planets_list
 
 def entity_sort_by_distance(current_ship, planet_list):
     """
