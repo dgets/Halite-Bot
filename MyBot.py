@@ -3,7 +3,7 @@ import logging
 from operator import itemgetter
 from math import atan2, hypot
 
-game = hlt.Game("D4m0b0t - v2.1 - rewrite & flow restructuring/modularization")
+game = hlt.Game("D4m0b0t - v2.1 - rewrite - flow restructuring n modularization")
 
 def docked_actions(current_ship):
     """
@@ -181,7 +181,7 @@ def undocked_actions(current_ship):
     ranked_planets_by_distance = entity_sort_by_distance(current_ship, game_map.all_planets())
     ranked_our_planets_by_docked = planet_sort_ours_by_docked(game_map.all_planets())
     ranked_untapped_planets = remove_tapped_planets(ranked_planets_by_distance, planets_to_avoid)
-    enemies = get_enemy_ships()
+    #enemies = get_enemy_ships()
     
     #get our command, if navigation to/docking with a planet is the best course of action
     #else None
@@ -355,23 +355,27 @@ def remove_tapped_planets(testing_planets, avoid_planets):
 def gather_enemy_data(enemy_list):
     """
     Still a work in progress heah
-    :param List enemy_list:
+    :param List of Tuples enemy_list:
     """
+    if DEBUGGING['method_entry']:
+        log.debug("gather_enemy_data():")
+        
     for current_enemy in enemy_list:
         if current_enemy.docking_status != current_enemy.DockingStatus.UNDOCKED:
             continue
         
         if current_enemy in enemy_data.keys():
             #update; move current coordinates to past & record new coordinates
-            enemy_data[current_enemy]['x2'] = enemy_data[current_enemy]['x1']
-            enemy_data[current_enemy]['y2'] = enemy_data[current_enemy]['y1']
+            enemy_data[current_enemy.id]['x2'] = enemy_data[current_enemy.id]['x1']
+            enemy_data[current_enemy.id]['y2'] = enemy_data[current_enemy.id]['y1']
         else:
-            enemy_data[current_enemy]['x2'] = None
-            enemy_data[current_enemy]['y2'] = None
+            enemy_data.append({'entity_object' : current_enemy, 'x2' : None, 'y2' : None})
+            #enemy_data[current_enemy.id]['x2'] = None
+            #enemy_data[current_enemy.id]['y2'] = None
             
-        enemy_data[current_enemy]['x1'] = current_enemy.x
-        enemy_data[current_enemy]['y1'] = current_enemy.y
-        enemy_data[current_enemy]['current'] = True
+        enemy_data[current_enemy.id]['x1'] = current_enemy.x
+        enemy_data[current_enemy.id]['y1'] = current_enemy.y
+        enemy_data[current_enemy.id]['current'] = True
 
     #let's handle cleaning the enemy_data here, too
     all_enemy_ships = get_enemy_ships().keys()
@@ -383,8 +387,10 @@ def process_enemy_data(enemy_list):
     """
     List of enemies to process data for; limiting this instead of doing all of them to save processing time
     :param List enemy_list:
-    
     """
+    if DEBUGGING['method_entry']:
+        log.debug("process_enemy_data():")
+        
     for current_enemy in enemy_list:
         if enemy_data[current_enemy]['x2']: #verify that this has had both coords 1 & 2 set
             enemy_data[current_enemy]['delta_x'] = enemy_data[current_enemy]['x2'] - enemy_data[current_enemy]['x1']
@@ -396,6 +402,28 @@ def process_enemy_data(enemy_list):
         if enemy_data[current_enemy]['magnitude'] == 0.0:
             enemy_data[current_enemy]['current'] = False
             
+def test_enemies_intersect_planet(enemy_list, fudge_factor, distance_consideration):
+    """
+    Test the list of enemies to see if they are planning on docking with a planet
+    :param List enemy_list:
+    :param Float fudge_factor:
+    :param Int distance_consideration:
+    """
+    if DEBUGGING['method_entry']:
+        log.debug("test_enemies_intersect_planet")
+        
+    for current_enemy in enemy_list:
+        for current_planet in game_map.all_planets():
+            if (current_planet.owner() == current_enemy.owner() or current_planet.owner() == None) and \
+                current_planet.calculate_distance_between(current_enemy) <= distance_consideration:
+                planet_intersect_angle = current_enemy.calculate_angle_between(current_planet)
+                if planet_intersect_angle >= (enemy_data[current_enemy]['angle'] - fudge_factor) and \
+                   planet_intersect_angle <= (enemy_data[current_enemy]['angle'] + fudge_factor):
+                    enemy_data[current_enemy]['planet_approach'] = current_planet.id
+                    break
+                else:
+                    enemy_data[current_enemy]['planet_approach'] = None
+
 #entrance
 #constants
 DEBUGGING = {
@@ -423,9 +451,9 @@ PRODUCTION = 6
 DOCKING_TURNS = 5
 
 planets_to_avoid = []
+enemy_data = []
 dock_process_list = {}
 undock_process_list = {}
-enemy_data = {}
 
 #init
 log = logging.getLogger(__name__)
@@ -441,10 +469,16 @@ while True:
     #default_speed = int(hlt.constants.MAX_SPEED / 2)
     #default_speed = int(hlt.constants.MAX_SPEED / 1.75)
     default_speed = hlt.constants.MAX_SPEED
+    fudge_factor = 1
 
     command_queue = []
     targeted_list = []
-
+    enemies = get_enemy_ships()
+    
+    if ALGORITHM['enemy_data_procedures']:
+        gather_enemy_data(enemies)
+        process_enemy_data(enemies)
+        
     for ship in game_map.get_me().all_ships():
         if ship.docking_status == ship.DockingStatus.DOCKED:
             new_command = docked_actions(ship)
