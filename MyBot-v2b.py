@@ -2,7 +2,7 @@ import hlt
 import logging
 from operator import itemgetter
 
-game = hlt.Game("D4m0b0t - v2.1b - rewrite & flow restructuring")
+game = hlt.Game("D4m0b0t - v2.1 - rewrite & flow restructuring/modularization")
 
 def docked_actions(current_ship):
     """
