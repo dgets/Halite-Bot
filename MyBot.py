@@ -1,6 +1,7 @@
 import hlt
 import logging
 from operator import itemgetter
+from math import atan2, hypot
 
 game = hlt.Game("D4m0b0t - v2.1 - rewrite & flow restructuring/modularization")
 
@@ -26,7 +27,8 @@ def docked_actions(current_ship):
                 
     if ALGORITHM['boobytrapping']:    #fully docked
         #is it time to bid thee farewell?
-        if current_ship.planet.remaining_resources <= (current_ship.planet.num_docking_spots * DOCKING_TURNS * PRODUCTION) + 10:
+        if current_ship.planet.remaining_resources <= (current_ship.planet.num_docking_spots * DOCKING_TURNS * PRODUCTION) + \
+                                                       PRODUCTION:
             #syntax/logic in the following conditional (specifically the 'not') may be phrased wrong
             if not current_ship.planet in planets_to_avoid:
                 if DEBUGGING['boobytrapping']:
@@ -350,23 +352,70 @@ def remove_tapped_planets(testing_planets, avoid_planets):
 
     return testing_planets
 
+def gather_enemy_data(enemy_list):
+    """
+    Still a work in progress heah
+    :param List enemy_list:
+    """
+    for current_enemy in enemy_list:
+        if current_enemy.docking_status != current_enemy.DockingStatus.UNDOCKED:
+            continue
+        
+        if current_enemy in enemy_data.keys():
+            #update; move current coordinates to past & record new coordinates
+            enemy_data[current_enemy]['x2'] = enemy_data[current_enemy]['x1']
+            enemy_data[current_enemy]['y2'] = enemy_data[current_enemy]['y1']
+        else:
+            enemy_data[current_enemy]['x2'] = None
+            enemy_data[current_enemy]['y2'] = None
+            
+        enemy_data[current_enemy]['x1'] = current_enemy.x
+        enemy_data[current_enemy]['y1'] = current_enemy.y
+        enemy_data[current_enemy]['current'] = True
+
+    #let's handle cleaning the enemy_data here, too
+    all_enemy_ships = get_enemy_ships().keys()
+    for entry in enemy_data:
+        if not entry in all_enemy_ships:
+            enemy_data.remove(entry)            
+            
+def process_enemy_data(enemy_list):
+    """
+    List of enemies to process data for; limiting this instead of doing all of them to save processing time
+    :param List enemy_list:
+    
+    """
+    for current_enemy in enemy_list:
+        if enemy_data[current_enemy]['x2']: #verify that this has had both coords 1 & 2 set
+            enemy_data[current_enemy]['delta_x'] = enemy_data[current_enemy]['x2'] - enemy_data[current_enemy]['x1']
+            enemy_data[current_enemy]['delta_y'] = enemy_data[current_enemy]['y2'] - enemy_data[current_enemy]['y1']
+            enemy_data[current_enemy]['angle'] = atan2(enemy_data[current_enemy]['delta_y'], enemy_data[current_enemy]['delta_x'])
+            enemy_data[current_enemy]['magnitude'] = math.hypot(
+                enemy_data[current_enemy]['delta_y'], enemy_data[current_enemy]['delta_x'])
+            
+        if enemy_data[current_enemy]['magnitude'] == 0.0:
+            enemy_data[current_enemy]['current'] = False
+            
 #entrance
 #constants
 DEBUGGING = {
         'ship_loop': True,
         'docking_procedures': False,
         'reinforce': False,
-        'offense': True,
+        'offense': False,
         'kamikaze': False,
-        'planet_selection': True,
-        'targeting': True,
-        'boobytrapping': False,
+        'planet_selection': False,
+        'targeting': False,
+        'boobytrapping': True,
+        'enemy_data_gathering': True,
+        'enemy_data_processing': True,
         'method_entry': True
 }
 ALGORITHM = {
         'reinforce': False,
         'offense': True,
         'kamikaze': False,
+        'enemy_data_procedures': True,
         'boobytrapping': True
 }
 
