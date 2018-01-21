@@ -2,7 +2,7 @@ import hlt
 import logging
 from operator import itemgetter
 
-game = hlt.Game("D4m0b0t - v2b - rewrite & flow restructuring")
+game = hlt.Game("D4m0b0t - v2.1b - rewrite & flow restructuring")
 
 def docked_actions(current_ship):
     """
@@ -183,7 +183,8 @@ def undocked_actions(current_ship):
     
     #get our command, if navigation to/docking with a planet is the best course of action
     #else None
-    navigate_command = target_planet(current_ship, ranked_planets_by_distance, ranked_our_planets_by_docked, ranked_untapped_planets)
+    navigate_command = target_planet(current_ship, ranked_planets_by_distance, ranked_our_planets_by_docked, \
+                                     ranked_untapped_planets)
 
     if not navigate_command:    
         #potential_angle = other_entities_in_vicinity(current_ship, enemies, ranked_untapped_planets[0]['distance'])
@@ -409,6 +410,3 @@ while True:
     #end per-ship iteration
 
     game.send_command_queue(command_queue)
-    
-
-
