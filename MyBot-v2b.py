@@ -83,6 +83,78 @@ def target_planet(current_ship, planets_ranked_by_distance, planets_ranked_ours_
         
     return navigate_command
 
+def go_offensive(current_ship, enemies):
+    """
+    Returns navigation command for offense, or None if not the best course of action at this juncture
+    :param Ship current_ship:
+    :param List of Tuples enemies:
+    :return navigation_command or None:
+    :rtype: String or None
+    """
+    navigate_command = None
+
+    if DEBUGGING['offense']:
+        log.debug("Engaging enemy")
+
+    closest_enemy = entity_sort_by_distance(current_ship, enemies)[0]['entity_object']
+            
+    if ALGORITHM['kamikaze']:
+        potential_kamikaze_angle = other_entities_in_vicinity(current_ship, enemies, 100)
+                
+        if DEBUGGING['kamikaze']:
+            log.debug(" - potential_kamikaze_angle: " + str(potential_kamikaze_angle))
+                
+        if potential_kamikaze_angle:
+            if DEBUGGING['kamikaze'] and DEBUGGING['offense']:
+                log.debug(" - going kamikaze")
+                    
+            navigate_command = current_ship.thrust(hlt.constants.MAX_SPEED, potential_kamikaze_angle)
+
+    if not navigate_command:
+        if DEBUGGING['offense']:
+            log.debug(" - engaging ship #" + str(closest_enemy.id))
+                    
+        navigate_command = current_ship.navigate(
+            current_ship.closest_point_to(closest_enemy),
+            game_map,
+            speed = default_speed,
+            ignore_ships = False)
+
+    return navigate_command
+
+def reinforce_planet(current_ship, our_planets_by_docked, our_ranked_untapped_planets):
+    """
+    Create navigation command to reinforce the nearest planet with an open docking spot
+    NOTE: This is currently not utilized, and almost certainly broken
+    :param Ship current_ship: derp
+    :param List our_planets_by_docked: List of Tuples
+    :param List our_ranked_untapped_planets: List of Tuples
+    :return String navigation_command:
+    :rtype: String
+    """
+    navigation_command = None
+
+    #reinforce that sucker
+    if DEBUGGING['reinforce']:
+        log.debug("Reinforcing planet #" + str(ranked_our_planets_by_docked[0]['entity_object'].id))
+
+    if current_ship.can_dock(ranked_our_planets_by_docked[0]['entity_object']):
+        if DEBUGGING['reinforce']:
+            log.debug(" - docking @ planet #" + str(ranked_our_planets_by_docked[0]['entity_object'].id))
+            
+        navigate_command = current_ship.dock(ranked_our_planets_by_docked[0]['entity_object'])
+    else:
+        if DEBUGGING['reinforce']:
+            log.debug(" - navigating to reinforce planet #" + str(ranked_untapped_planets[0]['entity_object']))
+               
+        navigate_command = current_ship.navigate(
+            current_ship.closest_point_to(ranked_untapped_planets[0]['entity_object']),
+            game_map,
+            speed = default_speed,
+            ignore_ships = False)
+
+    return navigation_command
+
 def undocked_actions(current_ship):
     """
     Determine what to do with the undocked ship
@@ -116,51 +188,9 @@ def undocked_actions(current_ship):
     if not navigate_command:    
         #potential_angle = other_entities_in_vicinity(current_ship, enemies, ranked_untapped_planets[0]['distance'])
         if ALGORITHM['offense']: # and potential_angle:
-            #another entity is closer or at the same distance; we need to go offensive
-            if DEBUGGING['offense']:
-                log.debug("Engaging enemy")
-
-            closest_enemy = entity_sort_by_distance(current_ship, enemies)[0]['entity_object']
-            
-            if ALGORITHM['kamikaze']:
-                potential_kamikaze_angle = other_entities_in_vicinity(current_ship, enemies, 100)
-                
-            if DEBUGGING['kamikaze']:
-                log.debug(" - potential_kamikaze_angle: " + str(potential_kamikaze_angle))
-                
-            if ALGORITHM['kamikaze'] and potential_kamikaze_angle:
-                if DEBUGGING['kamikaze'] and DEBUGGING['offense']:
-                    log.debug(" - going kamikaze")
-                    
-                navigate_command = current_ship.thrust(hlt.constants.MAX_SPEED, potential_kamikaze_angle)
-            else:
-                if DEBUGGING['offense']:
-                    log.debug(" - engaging ship #" + str(closest_enemy.id))
-                    
-                navigate_command = current_ship.navigate(
-                    current_ship.closest_point_to(closest_enemy),
-                    game_map,
-                    speed = default_speed,
-                    ignore_ships = False)
+            navigate_command = go_offensive(current_ship, enemies)
         elif ALGORITHM['reinforce'] and len(ranked_our_planets_by_docked) > 0:
-            #reinforce that sucker
-            if DEBUGGING['reinforce']:
-                log.debug("Reinforcing planet #" + str(ranked_our_planets_by_docked[0]['entity_object'].id))
-
-            if current_ship.can_dock(ranked_our_planets_by_docked[0]['entity_object']):
-                if DEBUGGING['reinforce']:
-                    log.debug(" - docking @ planet #" + str(ranked_our_planets_by_docked[0]['entity_object'].id))
-            
-                navigate_command = current_ship.dock(ranked_our_planets_by_docked[0]['entity_object'])
-            else:
-                if DEBUGGING['reinforce']:
-                    log.debug(" - navigating to reinforce planet #" + str(ranked_untapped_planets[0]['entity_object']))
-               
-                navigate_command = current_ship.navigate(
-                    current_ship.closest_point_to(ranked_untapped_planets[0]['entity_object']),
-                    game_map,
-                    speed = default_speed,
-                    ignore_ships = False)
+            navigate_command = reinforce_planet(current_ship, ranked_our_planets_by_docked, ranked_untapped_planets)
 
     return navigate_command
 
