@@ -96,8 +96,10 @@ def go_offensive(current_ship, enemies):
     if DEBUGGING['offense']:
         log.debug("Engaging enemy")
 
-    closest_enemy = entity_sort_by_distance(current_ship, enemies)[0]['entity_object']
-            
+    close_enemies = entity_sort_by_distance(current_ship, enemies)
+    closest_enemy = close_enemies[0]['entity_object']
+    close_friendlies = entity_sort_by_distance(current_ship, game_map.get_me().all_ships())
+    
     #implementation of kamikaze was never completed
     if ALGORITHM['kamikaze']:
         potential_kamikaze_angle = other_entities_in_vicinity(current_ship, enemies, 100) #note '100' was for debugging
@@ -115,7 +117,11 @@ def go_offensive(current_ship, enemies):
         if DEBUGGING['offense']:
             log.debug(" - engaging ship #" + str(closest_enemy.id))
         
-        if not ALGORITHM['ram_ships_when_weak'] or closest_enemy.health <= current_ship.health:
+        num_enemies_in_range = count_ships_in_firing_range(current_ship, close_enemies, MAX_FIRING_DISTANCE)
+        num_friendlies_in_range = count_ships_in_firing_range(current_ship, close_friendlies, MAX_FIRING_DISTANCE)
+         
+        if not ALGORITHM['ram_ships_when_weak'] or (closest_enemy.health <= current_ship.health and
+                                                    num_enemies_in_range <= num_friendlies_in_range):
             #standard offense, stay with 'em and shoot 'em
             if DEBUGGING['ram_ships_when_weak']:
                 log.debug("   - firing on enemy, not ramming")
@@ -127,9 +133,12 @@ def go_offensive(current_ship, enemies):
                 ignore_ships = False)
         else:
             #RAMMING SPEED!
-            if DEBUGGING['ram_ships_when_weak']:
+            if DEBUGGING['ram_ships_when_weak'] and (num_enemies_in_range <= num_friendlies_in_range):
                 log.debug("   - ship #" + str(closest_enemy.id) + " is stronger w/" + str(closest_enemy.health) + \
                           " health vs my " + str(current_ship.health) + " - ramming speed!")
+            elif DEBUGGING['ram_ships_when_weak']:
+                log.debug("   - my ship #" + str(current_ship.id) + " is outnumbered " + str(num_enemies_in_range) + ":" + \
+                          str(num_friendlies_in_range) + " - ramming speed!")
                 
             navigate_command = current_ship.navigate(
                 closest_enemy,
@@ -140,6 +149,25 @@ def go_offensive(current_ship, enemies):
                 ignore_planets = False)
 
     return navigate_command
+
+def count_ships_in_firing_range(current_ship, entities_for_consideration, max_range):
+    """
+    Determine how many ships are within our offensive bubble
+    :param Ship current_ship:
+    :param List of Tuples entities_for_consideration:
+    :param float max_range:
+    :return int ships in range:
+    :rtype: int
+    """
+    cntr = 0
+    #enemies_potentially_in_range = entity_sort_by_distance(current_ship, enemies)
+    for current_enemy in entities_for_consideration:
+        if current_enemy['distance'] <= max_range:
+            cntr += 1
+        else:
+            break   #don't waste the processing time
+        
+    return cntr
 
 def reinforce_planet(current_ship, our_planets_by_docked, our_ranked_untapped_planets):
     """
@@ -393,6 +421,7 @@ ALGORITHM = {
 
 PRODUCTION = 6
 DOCKING_TURNS = 5
+MAX_FIRING_DISTANCE = 5
 
 planets_to_avoid = []
 dock_process_list = {}
