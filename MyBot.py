@@ -2,7 +2,7 @@ import hlt
 import logging
 from operator import itemgetter
 
-game = hlt.Game("D4m0b0t - v2.1 - rewrite & flow restructuring/modularization")
+game = hlt.Game("D4m0b0t - v2.2a - smarter offense")
 
 def docked_actions(current_ship):
     """
@@ -98,8 +98,9 @@ def go_offensive(current_ship, enemies):
 
     closest_enemy = entity_sort_by_distance(current_ship, enemies)[0]['entity_object']
             
+    #implementation of kamikaze was never completed
     if ALGORITHM['kamikaze']:
-        potential_kamikaze_angle = other_entities_in_vicinity(current_ship, enemies, 100)
+        potential_kamikaze_angle = other_entities_in_vicinity(current_ship, enemies, 100) #note '100' was for debugging
                 
         if DEBUGGING['kamikaze']:
             log.debug(" - potential_kamikaze_angle: " + str(potential_kamikaze_angle))
@@ -110,15 +111,33 @@ def go_offensive(current_ship, enemies):
                     
             navigate_command = current_ship.thrust(hlt.constants.MAX_SPEED, potential_kamikaze_angle)
 
-    if not navigate_command:
+    if not ALGORITHM['kamikaze'] or not navigate_command:
         if DEBUGGING['offense']:
             log.debug(" - engaging ship #" + str(closest_enemy.id))
-                    
-        navigate_command = current_ship.navigate(
-            current_ship.closest_point_to(closest_enemy),
-            game_map,
-            speed = default_speed,
-            ignore_ships = False)
+        
+        if not ALGORITHM['ram_ships_when_weak'] or closest_enemy.health <= current_ship.health:
+            #standard offense, stay with 'em and shoot 'em
+            if DEBUGGING['ram_ships_when_weak']:
+                log.debug("   - firing on enemy, not ramming")
+                
+            navigate_command = current_ship.navigate(
+                current_ship.closest_point_to(closest_enemy),
+                game_map,
+                speed = default_speed,
+                ignore_ships = False)
+        else:
+            #RAMMING SPEED!
+            if DEBUGGING['ram_ships_when_weak']:
+                log.debug("   - ship #" + str(closest_enemy.id) + " is stronger w/" + str(closest_enemy.health) + \
+                          " health vs my " + str(current_ship.health) + " - ramming speed!")
+                
+            navigate_command = current_ship.navigate(
+                closest_enemy,
+                game_map,
+                speed = hlt.constants.MAX_SPEED,
+                avoid_obstacles = True,
+                ignore_ships = True,
+                ignore_planets = False)
 
     return navigate_command
 
@@ -357,15 +376,17 @@ DEBUGGING = {
         'docking_procedures': False,
         'reinforce': False,
         'offense': True,
+        'ram_ships_when_weak': True,
         'kamikaze': False,
-        'planet_selection': True,
-        'targeting': True,
+        'planet_selection': False,
+        'targeting': False,
         'boobytrapping': False,
         'method_entry': True
 }
 ALGORITHM = {
         'reinforce': False,
         'offense': True,
+        'ram_ships_when_weak': True,
         'kamikaze': False,
         'boobytrapping': True
 }
@@ -380,7 +401,7 @@ enemy_data = {}
 
 #init
 log = logging.getLogger(__name__)
-logging.info("D4m0b0t active")
+logging.info("D4m0b0t v2.2a active")
 
 #begin primary game loop
 while True:
