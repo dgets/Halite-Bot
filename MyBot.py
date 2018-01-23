@@ -2,7 +2,7 @@ import hlt
 import logging
 from operator import itemgetter
 
-game = hlt.Game("D4m0b0t - v2.2a - smarter offense")
+game = hlt.Game("D4m0b0t - v2.2b - smarter offense")
 
 def docked_actions(current_ship):
     """
@@ -99,6 +99,7 @@ def go_offensive(current_ship, enemies):
     close_enemies = entity_sort_by_distance(current_ship, enemies)
     closest_enemy = close_enemies[0]['entity_object']
     close_friendlies = entity_sort_by_distance(current_ship, game_map.get_me().all_ships())
+    close_planets = entity_sort_by_distance(current_ship, game_map.all_planets())
     
     #implementation of kamikaze was never completed
     if ALGORITHM['kamikaze']:
@@ -119,9 +120,22 @@ def go_offensive(current_ship, enemies):
         
         num_enemies_in_range = count_ships_in_firing_range(current_ship, close_enemies, MAX_FIRING_DISTANCE)
         num_friendlies_in_range = count_ships_in_firing_range(current_ship, close_friendlies, MAX_FIRING_DISTANCE)
-         
-        if not ALGORITHM['ram_ships_when_weak'] or (closest_enemy.health <= current_ship.health and
-                                                    num_enemies_in_range <= num_friendlies_in_range):
+        
+        if ALGORITHM['ram_planets_when_enemy_occupied'] and (close_planets[0]['distance'] <= (MAX_FIRING_DISTANCE * 2) and
+                                                             close_planets[0]['entity_object'].owner != current_ship.owner and
+                                                             close_planets[0]['entity_object'].num_docking_spots == 
+                                                             len(close_planets[0]['entity_object'].all_docked_ships())):
+            if DEBUGGING['ram_planets_when_enemy_occupied']:
+                log.debug("   - ramming enemy owned planet #" + str(close_planets[0]['entity_object'].id))
+                
+            return current_ship.navigate(
+                close_planets[0]['entity_object'],
+                game_map,
+                speed = hlt.constants.MAX_SPEED,
+                ignore_ships = True)
+        
+        if not ALGORITHM['ram_ships_when_weak'] and not navigate_command or (closest_enemy.health <= current_ship.health and
+                                                                             num_enemies_in_range <= num_friendlies_in_range):
             #standard offense, stay with 'em and shoot 'em
             if DEBUGGING['ram_ships_when_weak']:
                 log.debug("   - firing on enemy, not ramming")
@@ -131,7 +145,7 @@ def go_offensive(current_ship, enemies):
                 game_map,
                 speed = default_speed,
                 ignore_ships = False)
-        else:
+        elif not navigate_command:
             #RAMMING SPEED!
             if DEBUGGING['ram_ships_when_weak'] and (num_enemies_in_range <= num_friendlies_in_range):
                 log.debug("   - ship #" + str(closest_enemy.id) + " is stronger w/" + str(closest_enemy.health) + \
@@ -400,20 +414,22 @@ def remove_tapped_planets(testing_planets, avoid_planets):
 #entrance
 #constants
 DEBUGGING = {
-        'ship_loop': True,
+        'ship_loop': False,
         'docking_procedures': False,
         'reinforce': False,
         'offense': True,
+        'ram_planets_when_enemy_occupied': False,
         'ram_ships_when_weak': True,
         'kamikaze': False,
         'planet_selection': False,
         'targeting': False,
         'boobytrapping': False,
-        'method_entry': True
+        'method_entry': False
 }
 ALGORITHM = {
         'reinforce': False,
         'offense': True,
+        'ram_planets_when_enemy_occupied': False,
         'ram_ships_when_weak': True,
         'kamikaze': False,
         'boobytrapping': True
@@ -428,9 +444,12 @@ dock_process_list = {}
 undock_process_list = {}
 enemy_data = {}
 
+
+#my_id = game.update_map().get_me().id
+
 #init
 log = logging.getLogger(__name__)
-logging.info("D4m0b0t v2.2a active")
+logging.info("D4m0b0t v2.2b active")
 
 #begin primary game loop
 while True:
@@ -438,9 +457,7 @@ while True:
         log.debug("-+Beginning turn+-")
         
     game_map = game.update_map()
-    my_id = game_map.get_me().id
-    #default_speed = int(hlt.constants.MAX_SPEED / 2)
-    #default_speed = int(hlt.constants.MAX_SPEED / 1.75)
+    #my_id = game_map.get_me().id
     default_speed = hlt.constants.MAX_SPEED
 
     command_queue = []
